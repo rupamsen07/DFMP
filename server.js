@@ -56,6 +56,60 @@ app.get("/api/drugs", async (request, response) => {
   }
 });
 
+app.get("/api/treatments", async (request, response) => {
+  const { status } = request.query;
+  const allowedStatuses = ["QUARANTINED", "COMPLIANT"];
+
+  if (status !== undefined && (typeof status !== "string" || !allowedStatuses.includes(status))) {
+    return response.status(400).json({
+      error: "Status must be QUARANTINED or COMPLIANT."
+    });
+  }
+
+  if (!process.env.DATABASE_URL) {
+    return response.status(503).json({
+      error: "Database is not configured. Set DATABASE_URL in your .env file."
+    });
+  }
+
+  try {
+    const { rows } = await pool.query(`
+      SELECT t.treatment_id AS "treatmentId",
+             t.group_id AS "groupId",
+             c.group_label AS "groupLabel",
+             d.drug_id AS "drugId",
+             d.drug_name AS "drugName",
+             c.product_type AS "productType",
+             t.route,
+             t.dose_mg_per_kg AS "doseMgPerKg",
+             t.frequency_per_day AS "frequencyPerDay",
+             to_char(t.start_date, 'YYYY-MM-DD') AS "startDate",
+             to_char(t.end_date, 'YYYY-MM-DD') AS "endDate",
+             to_char(c.safe_to_sell_from, 'YYYY-MM-DD') AS "safeToSellFrom",
+             CASE
+               WHEN c.safe_to_sell_from > CURRENT_DATE THEN 'QUARANTINED'
+               ELSE 'COMPLIANT'
+             END AS status,
+             GREATEST(c.safe_to_sell_from - CURRENT_DATE, 0) AS "daysRemaining"
+      FROM v_withdrawal_clearance c
+      JOIN treatments t ON t.treatment_id = c.source_id
+      JOIN drugs d ON d.drug_id = c.drug_id
+      WHERE c.source = 'treatment'
+        AND ($1::text IS NULL OR
+             CASE
+               WHEN c.safe_to_sell_from > CURRENT_DATE THEN 'QUARANTINED'
+               ELSE 'COMPLIANT'
+             END = $1)
+      ORDER BY t.treatment_id, c.product_type
+    `, [status ?? null]);
+
+    response.json(rows);
+  } catch (error) {
+    console.error("Failed to fetch treatments from the database:", error);
+    response.status(500).json({ error: "Failed to fetch treatments." });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
 });

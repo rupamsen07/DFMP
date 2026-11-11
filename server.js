@@ -42,6 +42,7 @@ const drugs = [
     demoOnly: true
   }
 ];
+const treatments = [];
 
 app.get("/api/health", (request, response) => {
   response.json({ status: "ok" });

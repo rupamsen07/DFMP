@@ -21,7 +21,7 @@ app.get("/api/drugs", async (request, response) => {
   }
 
   try {
-    const { rows } = await pool.query(`
+    const result = await pool.query(`
       SELECT d.drug_id AS "drugId",
              d.drug_name AS name,
              d.category,
@@ -39,17 +39,23 @@ app.get("/api/drugs", async (request, response) => {
       ORDER BY d.drug_id
     `);
 
-    response.json(rows.map((drug) => ({
-      drugId: drug.drugId,
-      name: drug.name,
-      category: drug.category,
-      standardWithdrawalDays: drug.standardWithdrawalDays,
-      mrlLimit: `${Number(drug.mrlPpb)} ppb`,
-      targetProducts: drug.targetProducts.map(
-        (product) => product[0].toUpperCase() + product.slice(1)
-      ),
-      demoOnly: true
-    })));
+    const drugs = result.rows.map((drug) => {
+      const targetProducts = drug.targetProducts.map((product) => {
+        return product[0].toUpperCase() + product.slice(1);
+      });
+
+      return {
+        drugId: drug.drugId,
+        name: drug.name,
+        category: drug.category,
+        standardWithdrawalDays: drug.standardWithdrawalDays,
+        mrlLimit: `${Number(drug.mrlPpb)} ppb`,
+        targetProducts,
+        demoOnly: true
+      };
+    });
+
+    response.json(drugs);
   } catch (error) {
     console.error("Failed to fetch drugs from the database:", error);
     response.status(500).json({ error: "Failed to fetch drugs." });
@@ -73,7 +79,7 @@ app.get("/api/treatments", async (request, response) => {
   }
 
   try {
-    const { rows } = await pool.query(`
+    const result = await pool.query(`
       SELECT t.treatment_id AS "treatmentId",
              t.group_id AS "groupId",
              c.group_label AS "groupLabel",
@@ -103,10 +109,121 @@ app.get("/api/treatments", async (request, response) => {
       ORDER BY t.treatment_id, c.product_type
     `, [status ?? null]);
 
-    response.json(rows);
+    response.json(result.rows);
   } catch (error) {
     console.error("Failed to fetch treatments from the database:", error);
     response.status(500).json({ error: "Failed to fetch treatments." });
+  }
+});
+
+app.post("/api/treatments", async (request, response) => {
+  const {
+    groupId,
+    drugId,
+    prescriptionId = null,
+    administeredBy,
+    route,
+    doseMgPerKg,
+    frequencyPerDay,
+    startDate,
+    endDate,
+    reason
+  } = request.body ?? {};
+
+  const isPositiveInteger = (value) => Number.isInteger(value) && value > 0;
+
+  const isValidDate = (value) => {
+    if (typeof value !== "string") return false;
+
+    const date = new Date(value);
+    return (
+      !Number.isNaN(date.getTime()) &&
+      date.toISOString().slice(0, 10) === value
+    );
+  };
+
+  const validIds =
+    isPositiveInteger(groupId) &&
+    typeof drugId === "string" &&
+    drugId.trim() !== "" &&
+    (prescriptionId === null || isPositiveInteger(prescriptionId)) &&
+    isPositiveInteger(administeredBy);
+
+  const validTreatmentDetails =
+    ["injection", "oral", "intramammary"].includes(route) &&
+    typeof doseMgPerKg === "number" &&
+    Number.isFinite(doseMgPerKg) &&
+    doseMgPerKg > 0 &&
+    isPositiveInteger(frequencyPerDay);
+
+  const validDates =
+    isValidDate(startDate) &&
+    isValidDate(endDate) &&
+    endDate >= startDate;
+
+  const validReason =
+    typeof reason === "string" &&
+    reason.trim() !== "" &&
+    reason.length <= 200;
+
+  if (
+    !validIds ||
+    !validTreatmentDetails ||
+    !validDates ||
+    !validReason
+  ) {
+    return response.status(400).json({
+      error: "Provide valid groupId, drugId, administeredBy, route, doseMgPerKg, frequencyPerDay, startDate, endDate, and reason. prescriptionId is optional."
+    });
+  }
+
+  if (!process.env.DATABASE_URL) {
+    return response.status(503).json({
+      error: "Database is not configured. Set DATABASE_URL in your .env file."
+    });
+  }
+
+  try {
+    const result = await pool.query(`
+      INSERT INTO treatments (
+        group_id, drug_id, prescription_id, administered_by, route,
+        dose_mg_per_kg, frequency_per_day, start_date, end_date, reason
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING treatment_id AS "treatmentId",
+                group_id AS "groupId",
+                drug_id AS "drugId",
+                prescription_id AS "prescriptionId",
+                administered_by AS "administeredBy",
+                route,
+                dose_mg_per_kg AS "doseMgPerKg",
+                frequency_per_day AS "frequencyPerDay",
+                to_char(start_date, 'YYYY-MM-DD') AS "startDate",
+                to_char(end_date, 'YYYY-MM-DD') AS "endDate",
+                reason
+    `, [
+      groupId,
+      drugId.trim(),
+      prescriptionId,
+      administeredBy,
+      route,
+      doseMgPerKg,
+      frequencyPerDay,
+      startDate,
+      endDate,
+      reason.trim()
+    ]);
+
+    response.status(201).json(result.rows[0]);
+  } catch (error) {
+    if (error.code === "23503") {
+      return response.status(400).json({
+        error: "groupId, drugId, administeredBy, and prescriptionId must reference existing records."
+      });
+    }
+
+    console.error("Failed to create treatment:", error);
+    response.status(500).json({ error: "Failed to create treatment." });
   }
 });
 

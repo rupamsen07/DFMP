@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DFMP - Farmer Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout" id="top">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="20" fill="#D9A441"/><path d="M20 31V16" stroke="#2F4A2A" stroke-width="2.5" stroke-linecap="round" fill="none"/><path d="M20 20c-6 0-8-4-8-8 6 0 8 3 8 8z" fill="#2F4A2A"/><path d="M20 17c5 0 8-3 8-7-5 0-8 3-8 7z" fill="#2F4A2A"/></svg>
+      <div>
+        <span class="brand-name">DFMP</span>
+        <span class="brand-sub">Digital Farm Management Portal</span>
+      </div>
+    </div>
+    <nav class="nav">
+      <a href="#top" class="active">Farm overview</a>
+      <a href="#herds">My herds &amp; flocks</a>
+      <a href="#treatments">Treatments</a>
+      <a href="#alerts">Withdrawal alerts</a>
+      <a href="#sales">Milk &amp; meat sales</a>
+    </nav>
+    <div class="sidebar-foot">Farmer view</div>
+  </aside>
+
+  <main class="main">
+
+    <section class="banner">
+      <svg class="banner-art" viewBox="0 0 1000 180" preserveAspectRatio="xMaxYMax slice" aria-hidden="true">
+        <circle cx="860" cy="48" r="26" fill="#F2C14E"/>
+        <path d="M0 140 C150 100 280 120 420 105 C560 90 700 125 1000 100 L1000 180 L0 180Z" fill="#7FA65A"/>
+        <path d="M0 160 C200 135 360 155 560 140 C760 125 880 150 1000 135 L1000 180 L0 180Z" fill="#5E8B45"/>
+        <rect x="660" y="92" width="110" height="64" fill="#A63D2F"/>
+        <path d="M650 94 L715 58 L780 94Z" fill="#7A2A20"/>
+        <rect x="696" y="118" width="38" height="38" fill="#F6EFDD"/>
+        <path d="M696 118 L734 156 M734 118 L696 156" stroke="#A63D2F" stroke-width="3"/>
+        <rect x="790" y="70" width="26" height="86" fill="#C9C2AE"/>
+        <path d="M790 70 a13 13 0 0 1 26 0Z" fill="#9A927C"/>
+        <path d="M830 150 H1000 M830 136 H1000" stroke="#8A6A3E" stroke-width="4"/>
+        <path d="M850 160 V128 M890 160 V128 M930 160 V128 M970 160 V128" stroke="#8A6A3E" stroke-width="5"/>
+      </svg>
+      <div class="banner-content">
+        <div>
+          <h1>Good day</h1>
+          <p>Here is how your animals and products stand today.</p>
+        </div>
+        <button class="btn btn-primary" id="open-form" type="button">Log treatment</button>
+      </div>
+    </section>
+
+    <div class="notice" id="saved-notice" hidden>Treatment saved. It now appears under recent treatments.</div>
+
+    <section class="stats">
+      <div class="stat stat-gold"><span class="stat-label">Animals on the farm</span><span class="stat-value">537</span></div>
+      <div class="stat stat-red"><span class="stat-label">Hold back from market</span><span class="stat-value red">4</span></div>
+      <div class="stat stat-green"><span class="stat-label">Ready to sell</span><span class="stat-value green">1</span></div>
+      <div class="stat stat-lime">
+        <span class="stat-label">Compliance rate</span><span class="stat-value">20%</span>
+        <div class="bar"><div class="bar-fill" style="width:20%"></div></div>
+      </div>
+    </section>
+
+    <section id="herds">
+      <h2>My herds &amp; flocks</h2>
+      <div class="herds" id="herd-list"></div>
+    </section>
+
+    <section class="card" id="alerts">
+      <h2>Withdrawal alerts</h2>
+      <div class="filters" id="filters"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Group</th><th>Product</th><th>Days left</th><th>Status</th></tr></thead>
+          <tbody id="alert-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="card" id="treatments">
+        <h2>Recent treatments</h2>
+        <div id="treatment-list"></div>
+      </section>
+      <section class="card" id="sales">
+        <h2>Sold too early</h2>
+        <div id="early-list"></div>
+      </section>
+    </div>
+
+    <footer class="foot">
+      <span class="chip chip-ok">Audit chain verified</span>
+      <span>Every treatment, prescription and sale is recorded in a tamper-evident log.</span>
+    </footer>
+  </main>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <form class="modal" id="treatment-form" novalidate>
+    <h2>Log a treatment</h2>
+    <div class="field">
+      <label for="f-group">Herd or flock</label>
+      <select id="f-group">
+        <option>Dairy herd A</option><option>Heifers B</option><option>Broiler batch 7</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-drug">Antimicrobial</label>
+      <select id="f-drug">
+        <option>Oxytetracycline</option><option>Amoxicillin</option><option>Enrofloxacin</option><option>Gentamicin</option>
+      </select>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="f-route">Route</label>
+        <select id="f-route">
+          <option value="injection">Injection</option><option value="oral">Oral</option><option value="intramammary">Intramammary</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-dose">Dose (mg/kg)</label>
+        <input id="f-dose" type="text" inputmode="decimal" value="10">
+      </div>
+    </div>
+    <div class="check">
+      <input id="f-rx" type="checkbox" checked>
+      <label for="f-rx">I have a vet prescription for this</label>
+    </div>
+    <p class="error" id="form-error" hidden>Enter a dose greater than 0.</p>
+    <div class="actions">
+      <button class="btn btn-outline" id="cancel-form" type="button">Cancel</button>
+      <button class="btn btn-primary" type="submit">Save treatment</button>
+    </div>
+  </form>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

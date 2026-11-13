@@ -62,6 +62,49 @@ app.get("/api/drugs", async (request, response) => {
   }
 });
 
+app.get("/api/stats", async (request, response) => {
+  if (!process.env.DATABASE_URL) {
+    return response.status(503).json({
+      error: "Database is not configured. Set DATABASE_URL in your .env file."
+    });
+  }
+
+  try {
+    const result = await pool.query(`
+      WITH product_status AS (
+        SELECT in_withdrawal
+        FROM v_group_safe_dates
+      ),
+      counts AS (
+        SELECT COUNT(*) FILTER (WHERE in_withdrawal) AS "activeQuarantine",
+               COUNT(*) FILTER (WHERE NOT in_withdrawal) AS "totalCleared",
+               COUNT(*) AS "totalProducts"
+        FROM product_status
+      )
+      SELECT
+        (SELECT COALESCE(SUM(head_count), 0)::int FROM animal_groups) AS "totalAnimals",
+        "activeQuarantine",
+        "totalCleared",
+        CASE
+          WHEN "totalProducts" = 0 THEN 0
+          ELSE ROUND(100.0 * "totalCleared" / "totalProducts", 1)
+        END AS "complianceRate"
+      FROM counts
+    `);
+
+    const stats = result.rows[0];
+    response.json({
+      totalAnimals: Number(stats.totalAnimals),
+      activeQuarantine: Number(stats.activeQuarantine),
+      totalCleared: Number(stats.totalCleared),
+      complianceRate: Number(stats.complianceRate)
+    });
+  } catch (error) {
+    console.error("Failed to fetch stats from the database:", error);
+    response.status(500).json({ error: "Failed to fetch stats." });
+  }
+});
+
 app.get("/api/treatments", async (request, response) => {
   const { status } = request.query;
   const allowedStatuses = ["QUARANTINED", "COMPLIANT"];

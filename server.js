@@ -156,6 +156,35 @@ app.get("/api/stats", async (request, response) => {
   }
 });
 
+app.get("/api/sales/violations", async (request, response) => {
+  if (!process.env.DATABASE_URL) {
+    return response.status(503).json({
+      error: "Database is not configured. Set DATABASE_URL in your .env file."
+    });
+  }
+
+  try {
+    const result = await pool.query(`
+      SELECT sale_id AS "saleId",
+             group_id AS "groupId",
+             group_label AS "groupLabel",
+             farm_name AS "farmName",
+             district,
+             product_type AS "productType",
+             to_char(sale_date, 'YYYY-MM-DD') AS "saleDate",
+             to_char(safe_to_sell_from, 'YYYY-MM-DD') AS "safeToSellFrom",
+             days_early AS "daysEarly"
+      FROM v_sale_violations
+      ORDER BY sale_date DESC, sale_id
+    `);
+
+    response.json(result.rows);
+  } catch (error) {
+    console.error("Failed to fetch sale violations from the database:", error);
+    response.status(500).json({ error: "Failed to fetch sale violations." });
+  }
+});
+
 app.get("/api/treatments", async (request, response) => {
   const { status } = request.query;
   const allowedStatuses = ["QUARANTINED", "COMPLIANT"];

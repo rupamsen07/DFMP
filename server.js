@@ -185,6 +185,43 @@ app.get("/api/sales/violations", async (request, response) => {
   }
 });
 
+app.get("/api/audit/verify", async (request, response) => {
+  if (!process.env.DATABASE_URL) {
+    return response.status(503).json({
+      error: "Database is not configured. Set DATABASE_URL in your .env file."
+    });
+  }
+
+  try {
+    const result = await pool.query(`
+      SELECT COUNT(*)::int AS "entryCount",
+             COUNT(*) FILTER (
+               WHERE link_broken OR hash_mismatch
+             )::int AS "issueCount"
+      FROM v_audit_chain_check
+    `);
+
+    const { entryCount, issueCount } = result.rows[0];
+    let status = "EMPTY";
+
+    if (entryCount > 0 && issueCount === 0) {
+      status = "VERIFIED";
+    } else if (issueCount > 0) {
+      status = "ISSUES_FOUND";
+    }
+
+    response.json({
+      status,
+      verified: status === "VERIFIED",
+      entryCount,
+      issueCount
+    });
+  } catch (error) {
+    console.error("Failed to verify the audit chain:", error);
+    response.status(500).json({ error: "Failed to verify the audit chain." });
+  }
+});
+
 app.get("/api/treatments", async (request, response) => {
   const { status } = request.query;
   const allowedStatuses = ["QUARANTINED", "COMPLIANT"];

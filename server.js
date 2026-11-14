@@ -62,6 +62,57 @@ app.get("/api/drugs", async (request, response) => {
   }
 });
 
+app.get("/api/animal-groups", async (request, response) => {
+  if (!process.env.DATABASE_URL) {
+    return response.status(503).json({
+      error: "Database is not configured. Set DATABASE_URL in your .env file."
+    });
+  }
+
+  try {
+    const result = await pool.query(`
+      SELECT g.group_id AS "groupId",
+             g.group_label AS "groupLabel",
+             sp.name AS species,
+             f.farm_name AS "farmName",
+             g.head_count AS "headCount"
+      FROM animal_groups g
+      JOIN species sp ON sp.species_id = g.species_id
+      JOIN farms f ON f.farm_id = g.farm_id
+      ORDER BY f.farm_name, g.group_label
+    `);
+
+    response.json(result.rows);
+  } catch (error) {
+    console.error("Failed to fetch animal groups from the database:", error);
+    response.status(500).json({ error: "Failed to fetch animal groups." });
+  }
+});
+
+app.get("/api/treatment-users", async (request, response) => {
+  if (!process.env.DATABASE_URL) {
+    return response.status(503).json({
+      error: "Database is not configured. Set DATABASE_URL in your .env file."
+    });
+  }
+
+  try {
+    const result = await pool.query(`
+      SELECT user_id AS "userId",
+             full_name AS "fullName",
+             role
+      FROM users
+      WHERE role IN ('farmer', 'vet')
+      ORDER BY full_name
+    `);
+
+    response.json(result.rows);
+  } catch (error) {
+    console.error("Failed to fetch treatment users from the database:", error);
+    response.status(500).json({ error: "Failed to fetch treatment users." });
+  }
+});
+
 app.get("/api/stats", async (request, response) => {
   if (!process.env.DATABASE_URL) {
     return response.status(503).json({
